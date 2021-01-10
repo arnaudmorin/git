@@ -239,6 +239,22 @@ checkout_staged_file () {
 	fi
 }
 
+auto_merge () {
+	git merge-file --diff3 --marker-size=7 -q -p "$LOCAL" "$BASE" "$REMOTE" >"$DIFF3"
+	if test -s "$DIFF3"
+	then
+		C0="^<<<<<<< "
+		C1="^||||||| "
+		C2="^=======$(printf '\015')\{0,1\}$"
+		C3="^>>>>>>> "
+
+		sed -e "/$C0/,/$C1/d" -e "/$C2/,/$C3/d" "$DIFF3" >"$BASE"
+		sed -e "/$C0/d" -e "/$C1/,/$C3/d" "$DIFF3" >"$LOCAL"
+		sed -e "/$C0/,/$C2/d" -e "/$C3/d" "$DIFF3" >"$REMOTE"
+	fi
+	rm -- "$DIFF3"
+}
+
 merge_file () {
 	MERGED="$1"
 
@@ -274,6 +290,7 @@ merge_file () {
 		BASE=${BASE##*/}
 	fi
 
+	DIFF3="$MERGETOOL_TMPDIR/${BASE}_DIFF3_$$$ext"
 	BACKUP="$MERGETOOL_TMPDIR/${BASE}_BACKUP_$$$ext"
 	LOCAL="$MERGETOOL_TMPDIR/${BASE}_LOCAL_$$$ext"
 	REMOTE="$MERGETOOL_TMPDIR/${BASE}_REMOTE_$$$ext"
@@ -321,6 +338,16 @@ merge_file () {
 	checkout_staged_file 1 "$MERGED" "$BASE"
 	checkout_staged_file 2 "$MERGED" "$LOCAL"
 	checkout_staged_file 3 "$MERGED" "$REMOTE"
+
+	initialize_merge_tool "$merge_tool"
+
+	if automerge_enabled && test "$(
+		git config --get --bool "mergetool.$merge_tool.automerge" ||
+		git config --get --bool "mergetool.automerge" ||
+		echo true)" = true
+	then
+		auto_merge
+	fi
 
 	if test -z "$local_mode" || test -z "$remote_mode"
 	then
