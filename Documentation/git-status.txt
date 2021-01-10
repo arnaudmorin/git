@@ -201,6 +201,10 @@ codes can be interpreted as follows:
 Ignored files are not listed, unless `--ignored` option is in effect,
 in which case `XY` are `!!`.
 
+In the table below, the first section indicates normal non-conflicted states for
+tracked files, the second indicates files where a merge conflict has occurred
+but not yet been resolved, and the third indicates files not tracked by Git.
+
 ....
 X          Y     Meaning
 -------------------------------------------------
