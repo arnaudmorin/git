@@ -4,14 +4,20 @@ test_description='test git rev-list --cherry-pick -- file'
 
 . ./test-lib.sh
 
-# A---B---D---F
+# A---B---D---F---G---H---I---J
 #  \
 #   \
-#    C---E
+#    C---E---Gb---Hb---Ib---Jb
 #
 # B changes a file foo.c, adding a line of text.  C changes foo.c as
 # well as bar.c, but the change in foo.c was identical to change B.
 # D and C change bar in the same way, E and F differently.
+# G is introducing two changes in foo
+# H is reverting one of the changes
+# I is reverting the other
+# J is re-introducing the two changes, so J is having the same
+# patch-id as G
+# Gb, Hb, Ib, Jb are cherry-picked from their respectives
 
 test_expect_success setup '
 	echo Hallo > foo &&
@@ -45,7 +51,36 @@ test_expect_success setup '
 	git add bar &&
 	test_tick &&
 	git commit -m "F" &&
-	git tag F
+	git tag F &&
+	echo Cello1 > foo &&
+	git add foo &&
+	test_tick &&
+	git commit -m "G" &&
+	git tag G &&
+	echo Cello > foo &&
+	git add foo &&
+	test_tick &&
+	git commit -m "H" &&
+	git tag H &&
+	echo Bello > foo &&
+	git add foo &&
+	test_tick &&
+	git commit -m "I" &&
+	git tag I &&
+	echo Cello1 > foo &&
+	git add foo &&
+	test_tick &&
+	git commit -m "J" &&
+	git tag J &&
+	git checkout branch &&
+	git cherry-pick G &&
+	git tag Gb &&
+	git cherry-pick H &&
+	git tag Hb &&
+	git cherry-pick I &&
+	git tag Ib &&
+	git cherry-pick J &&
+	git tag Jb
 '
 
 cat >expect <<EOF
@@ -132,7 +167,7 @@ test_expect_success 'name-rev --exclude excludes matched patterns' '
 
 test_expect_success 'name-rev --no-refs clears the refs list' '
 	git rev-list --left-right --cherry-pick F...E -- bar >expect &&
-	git name-rev --stdin --name-only --refs="*tags/F" --refs="*tags/E" --no-refs --refs="*tags/G" \
+	git name-rev --stdin --name-only --refs="*tags/F" --refs="*tags/E" --no-refs --refs="*tags/NA" \
 		<expect >actual &&
 	test_cmp expect actual
 '
@@ -233,7 +268,7 @@ test_expect_success '--cherry-pick with independent, but identical branches' '
 	test_tick &&
 	git commit -m "independent, too" foo &&
 	test -z "$(git rev-list --left-right --cherry-pick \
-		HEAD...master -- foo)"
+		HEAD...F -- foo)"
 '
 
 cat >expect <<EOF
@@ -242,6 +277,15 @@ EOF
 
 test_expect_success '--count --left-right' '
 	git rev-list --count --left-right C...D > actual &&
+	test_cmp expect actual
+'
+
+cat >expect <<EOF
+0	0
+EOF
+
+test_expect_success '--count --left-right --cherry-pick patch-id twice' '
+	git rev-list --count --left-right --cherry-pick Jb...J -- foo > actual &&
 	test_cmp expect actual
 '
 
